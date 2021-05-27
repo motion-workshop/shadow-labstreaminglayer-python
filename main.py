@@ -134,10 +134,10 @@ def make_stream_outlet(args, xml_node_list, container):
                 raise RuntimeError(
                     "device missing from name map, unable to create header")
 
-            if len(CHANNEL_INFO) != item.size():
+            if len(CHANNEL_INFO) != len(item):
                 raise RuntimeError(
                     f"expected {len(CHANNEL_INFO)} channels but found "
-                    "{item.size()}, unable to create header")
+                    "{len(item)}, unable to create header")
 
             node_name = name_map[key]
             for channel_info in CHANNEL_INFO:

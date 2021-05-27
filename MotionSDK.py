@@ -437,6 +437,12 @@ class Format:
             """
             Format.Element.__init__(self, data, 0, True)
 
+        def __len__(self):
+            """
+            Size of the internal data.
+            """
+            return len(self.access())
+
         def value(self, index):
             """
             Get a single channel entry at specified index.

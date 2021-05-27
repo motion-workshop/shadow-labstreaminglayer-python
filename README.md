@@ -1,7 +1,7 @@
 # Shadow Lab Streaming Layer (LSL)
 
 Lab Streaming Layer (LSL) app for your Shadow Motion Capture System. Convert a
-Shadow devkti stream into a LSL Stream Outlet. Runs as a command line Python
+Shadow devkit stream into a LSL Stream Outlet. Runs as a command line Python
 app.
 
 ## Install required packages
@@ -25,4 +25,10 @@ optional arguments:
   --header     write header to the stream as per the XDF metadata spec
   --host HOST  IP address of your Shadow app
   --port PORT  port number of your Shadow app
+```
+
+## Run unit tests
+
+```
+python -m unittest
 ```
