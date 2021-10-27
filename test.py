@@ -25,7 +25,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 import main
-import client
 
 import unittest
 
@@ -55,15 +54,15 @@ class TestMain(unittest.TestCase):
         self.assertEqual(name_map.get(1), 'FirstName')
         self.assertEqual(name_map.get(9), 'LastName')
 
-    def test_make_shadow_client(self):
+    def test_open_shadow_stream(self):
         # Create a mock argparse result
         args = type('obj', (object,), {'host': '', 'port': 32076})
 
-        client = main.make_shadow_client(args)
+        client = main.open_shadow_stream(args)
 
         self.assertIsInstance(client, object)
 
-    def test_make_stream_outlet(self):
+    def test_open_stream_outlet(self):
         # Create a mock argparse result
         args = type('obj', (object,), {'header': True})
 
@@ -79,7 +78,7 @@ class TestMain(unittest.TestCase):
             9: (float(1),) * len(main.CHANNEL_INFO)
         }
 
-        outlet = main.make_stream_outlet(args, xml_string, container)
+        outlet = main.open_stream_outlet(args, xml_string, container)
 
         self.assertIsInstance(outlet, object)
 

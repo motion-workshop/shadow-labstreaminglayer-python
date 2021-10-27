@@ -71,8 +71,8 @@ async def asyncio_test_stream():
 
 class TestClient(unittest.TestCase):
 
-    #def test_client(self):
-    #    asyncio.run(asyncio_test_client())
+    # def test_client(self):
+    #     asyncio.run(asyncio_test_client())
 
     def test_stream(self):
         asyncio.run(asyncio_test_stream())

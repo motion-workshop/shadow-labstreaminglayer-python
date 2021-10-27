@@ -1,3 +1,29 @@
+#
+# Copyright (c) 2021, Motion Workshop
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS'
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
 import asyncio
 import struct
 import xml.etree.ElementTree
@@ -18,14 +44,23 @@ class Stream:
         self.__name_map = None
 
     async def read_message(self, timeout=None):
-        return await read_message(self.__reader, timeout)
+        message = await read_message(self.__reader, timeout)
+
+        if is_metadata(message):
+            self.__name_map = parse_metadata(message)
+            message = await read_message(self.__reader, timeout)
+
+        return message
 
     async def write_message(self, timeout=None):
         return await write_message(self.__writer, timeout)
 
+    def get_name_map(self):
+        return self.__name_map
+
 
 async def open_connection(host='127.0.0.1', port=32076):
-    reader, writer = await asyncio.open_connection(port=32076)
+    reader, writer = await asyncio.open_connection(host=host, port=32076)
 
     message = await read_message(reader, 1)
     if not is_metadata(message):

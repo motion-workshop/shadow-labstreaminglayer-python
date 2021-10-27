@@ -24,12 +24,12 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-import MotionSDK
+import client
 import pylsl
 
 import argparse
+import asyncio
 import sys
-import xml.etree.ElementTree
 
 #
 # For each node in the Shadow devkit stream copy these channels. Use the
@@ -41,47 +41,24 @@ import xml.etree.ElementTree
 # (<marker>.label, type, unit)
 #
 CHANNEL_INFO = (
-    ("Lqw", "OrientationA", "quaternion"),
-    ("Lqx", "OrientationB", "quaternion"),
-    ("Lqy", "OrientationC", "quaternion"),
-    ("Lqz", "OrientationD", "quaternion"),
-    ("cw", "Confidence", "normalized"),
-    ("cx", "PositionX", "centimeters"),
-    ("cy", "PositionY", "centimeters"),
-    ("cz", "PositionZ", "centimeters")
+    ('Lqw', 'OrientationA', 'quaternion'),
+    ('Lqx', 'OrientationB', 'quaternion'),
+    ('Lqy', 'OrientationC', 'quaternion'),
+    ('Lqz', 'OrientationD', 'quaternion'),
+    ('cw', 'Confidence', 'normalized'),
+    ('cx', 'PositionX', 'centimeters'),
+    ('cy', 'PositionY', 'centimeters'),
+    ('cz', 'PositionZ', 'centimeters')
 )
 
 
-def parse_name_map(xml_node_list):
-    #
-    # Convert a list of channel names to a map from integer key to string name.
-    #
-    # Parse an XML message string from a MotionSDK.Client stream. The first
-    # message is always a flat list of node names and integer key pairs.
-    #
-    # parse_name_map('<node key="1" id="Name"/>...') -> {1: "Name", ...}
-    #
-    # Use the key to look up the node name for every sample of measurement data
-    # until we receive a new XML message.
-    #
-    tree = xml.etree.ElementTree.fromstring(xml_node_list)
-
-    # <node key="N" id="Name"> ... </node>
-    items = tree.findall("node")
-
-    return {
-        int(item.get("key")): item.get("id")
-        for item in items
-    }
-
-
-def make_shadow_client(args):
+async def open_shadow_stream(args):
     #
     # Connect to the devkit data stream running in the Shadow app. Request the
     # channels we want to read in this application and return the client
     # ready to stream sample data.
     #
-    client = MotionSDK.Client(args.host, args.port)
+    stream = await client.open_connection(host=args.host, port=args.port)
 
     #
     # Request the channels that we want from every connected device. The full
@@ -94,20 +71,23 @@ def make_shadow_client(args):
     # which are not necessarily attached to a sensor but are animated as part
     # of the Shadow skeleton.
     #
-    xml_channels = "".join([f"<{item[0]}/>" for item in CHANNEL_INFO])
+    channels = ''.join([
+        f'<{item[0]}/>'
+        for item in CHANNEL_INFO
+    ])
 
-    xml_string = \
+    message = \
         '<?xml version="1.0"?>' \
-        f'<configurable inactive="1">{xml_channels}</configurable>'
+        '<configurable inactive="1">' \
+        f'{channels}' \
+        '</configurable>'
 
-    if not client.writeData(xml_string):
-        raise RuntimeError(
-            "failed to send channel list request to Configurable service")
+    await stream.write_message(message.encode())
 
-    return client
+    return stream
 
 
-def make_stream_outlet(args, xml_node_list, container):
+def open_stream_outlet(args, name_map, container):
     #
     # Create a LSL Stream Outlet based our channels and the first current input
     # sample from our Shadow devkit client.
@@ -115,82 +95,69 @@ def make_stream_outlet(args, xml_node_list, container):
     num_channel = len(container) * len(CHANNEL_INFO)
 
     info = pylsl.StreamInfo(
-        "ShadowMocap",
-        "MoCap",
+        'ShadowMocap',
+        'MoCap',
         num_channel,
         100,
-        "float32",
-        "fe69d558-2c31-4730-84a3-ea411d37a141")
+        'float32',
+        'fe69d558-2c31-4730-84a3-ea411d37a141')
 
     if args.header:
-        name_map = parse_name_map(xml_node_list)
-
-        channels = info.desc().append_child("channels")
-        acquisition = info.desc().append_child("acquisition")
-        markers = info.desc().append_child("markers")
+        channels = info.desc().append_child('channels')
+        acquisition = info.desc().append_child('acquisition')
+        markers = info.desc().append_child('markers')
 
         for key, item in container.items():
             if key not in name_map:
                 raise RuntimeError(
-                    "device missing from name map, unable to create header")
+                    'device missing from name map, unable to create header')
 
             if len(CHANNEL_INFO) != len(item):
                 raise RuntimeError(
-                    f"expected {len(CHANNEL_INFO)} channels but found "
-                    "{len(item)}, unable to create header")
+                    f'expected {len(CHANNEL_INFO)} channels but found '
+                    '{len(item)}, unable to create header')
 
-            node_name = name_map[key]
-            for channel_info in CHANNEL_INFO:
-                channel_name = channel_info[0]
-                label = f"{node_name}.{channel_name}"
+            node_name = name_map.get(key)
+            for channel_name, channel_type, channel_unit in CHANNEL_INFO:
+                label = f'{node_name}.{channel_name}'
 
-                channel = channels.append_child("channel")
-                channel.append_child_value("label", label)
-                channel.append_child_value("marker", node_name)
-                channel.append_child_value("type", channel_info[1])
-                channel.append_child_value("unit", channel_info[2])
+                channel = channels.append_child('channel')
+                channel.append_child_value('label', label)
+                channel.append_child_value('marker', node_name)
+                channel.append_child_value('type', channel_type)
+                channel.append_child_value('unit', channel_unit)
 
-            marker = markers.append_child("marker")
-            marker.append_child_value("label", node_name)
+            marker = markers.append_child('marker')
+            marker.append_child_value('label', node_name)
 
-        acquisition.append_child_value("manufacturer", "Motion Workshop")
-        acquisition.append_child_value("model", "Shadow")
+        acquisition.append_child_value('manufacturer', 'Motion Workshop')
+        acquisition.append_child_value('model', 'Shadow')
 
     return pylsl.StreamOutlet(info, max_buffered=1)
 
 
-def shadow_to_labstreaminglayer(args):
-    client = make_shadow_client(args)
+async def shadow_to_labstreaminglayer(args):
+    #
+    # Open input stream connection from the Shadow app.
+    #
+    stream = await open_shadow_stream(args)
 
-    xml_node_list = None
-    outlet = None
+    #
+    # Wait for first sample. This will also load the current name map.
+    #
+    message = await stream.read_message(5)
+    container = client.unpack_sample(message)
+    name_map = stream.get_name_map()
+
+    #
+    # Open output stream.
+    #
+    outlet = open_stream_outlet(args, name_map, container)
 
     while True:
-        # Block, waiting for the next sample.
-        data = client.readData()
-        if data is None:
-            raise RuntimeError("data stream interrupted or timed out")
-            break
-
-        if data.startswith(b"<?xml"):
-            xml_node_list = data
-            continue
-
-        container = MotionSDK.Format.Configurable(data)
-
-        #
-        # Consume the XML node name list. If the print header option is active
-        # add that now.
-        #
-        if xml_node_list:
-            outlet = make_stream_outlet(args, xml_node_list, container)
-            xml_node_list = None
-
-        #
-        # Must have an input sample and outlet at this point.
-        #
-        if outlet is None:
-            raise RuntimeError("no stream outlet available")
+        # Wait for the next sample.
+        message = await stream.read_message(1)
+        container = client.unpack_sample(message)
 
         #
         # Make a flat list of all of the values that are part of one sample.
@@ -198,11 +165,8 @@ def shadow_to_labstreaminglayer(args):
         sample = [
             value
             for key, item in container.items()
-            for value in item.access()
+            for value in item
         ]
-
-        if len(sample) != len(container) * len(CHANNEL_INFO):
-            raise RuntimeError("unknown data format in stream")
 
         outlet.push_sample(sample)
 
@@ -210,26 +174,26 @@ def shadow_to_labstreaminglayer(args):
 def main(argv):
     parser = argparse.ArgumentParser(
         description=(
-            "Read data from your Shadow mocap system and create a Stream"
-            " Outlet for the Lab Streaming Layer (LSL)"))
+            'Read data from your Shadow mocap system and create a Stream'
+            ' Outlet for the Lab Streaming Layer (LSL)'))
 
     parser.add_argument(
-        "--header",
-        help="write header to the stream as per the XDF metadata spec",
-        action="store_true")
+        '--header',
+        help='write header to the stream as per the XDF metadata spec',
+        action='store_true')
     parser.add_argument(
-        "--host",
-        help="IP address of your Shadow app",
-        default="127.0.0.1")
+        '--host',
+        help='IP address of your Shadow app',
+        default='127.0.0.1')
     parser.add_argument(
-        "--port",
-        help="port number of your Shadow app",
+        '--port',
+        help='port number of your Shadow app',
         type=int,
         default=32076)
 
     args = parser.parse_args()
 
-    shadow_to_labstreaminglayer(args)
+    asyncio.run(shadow_to_labstreaminglayer(args))
 
 
 if __name__ == '__main__':
