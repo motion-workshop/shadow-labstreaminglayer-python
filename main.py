@@ -41,10 +41,10 @@ import sys
 # (<marker>.label, type, unit)
 #
 CHANNEL_INFO = (
-    ('Lqw', 'OrientationA', 'quaternion'),
-    ('Lqx', 'OrientationB', 'quaternion'),
-    ('Lqy', 'OrientationC', 'quaternion'),
-    ('Lqz', 'OrientationD', 'quaternion'),
+    ('Bqw', 'OrientationA', 'quaternion'),
+    ('Bqx', 'OrientationB', 'quaternion'),
+    ('Bqy', 'OrientationC', 'quaternion'),
+    ('Bqz', 'OrientationD', 'quaternion'),
     ('cw', 'Confidence', 'normalized'),
     ('cx', 'PositionX', 'centimeters'),
     ('cy', 'PositionY', 'centimeters'),
@@ -66,7 +66,7 @@ async def open_shadow_stream(args):
     #
     #   https://www.motionshadow.com/download/media/configurable.xml
     #
-    # Select the local quaternion (Lq) and positional constraint (c)
+    # Select the body quaternion (Bq) and positional constraint (c)
     # channels here. 8 numbers per device per frame. Ask for inactive nodes
     # which are not necessarily attached to a sensor but are animated as part
     # of the Shadow skeleton.
