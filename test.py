@@ -26,59 +26,40 @@
 #
 import main
 
+import asyncio
 import unittest
+
+
+async def asyncio_test_outlet(ctx, args):
+    client = await main.open_shadow_stream(args)
+
+    ctx.assertIsInstance(client, object)
 
 
 class TestMain(unittest.TestCase):
 
-    def test_parse_name_map(self):
-        xml_string = \
-            '<?xml version="1.0"?>' \
-            '<node key="0" id="default">' \
-            '<node key="1" id="FirstName"></node>' \
-            '<node key="9" id="LastName"/>' \
-            '</node>'
-
-        name_map = main.parse_name_map(xml_string)
-
-        self.assertIsInstance(name_map, dict)
-
-        for k, v in name_map.items():
-            self.assertIsInstance(k, int)
-            self.assertIsInstance(v, str)
-
-        self.assertNotIn(0, name_map)
-        self.assertIn(1, name_map)
-        self.assertIn(9, name_map)
-
-        self.assertEqual(name_map.get(1), 'FirstName')
-        self.assertEqual(name_map.get(9), 'LastName')
-
     def test_open_shadow_stream(self):
         # Create a mock argparse result
         args = type('obj', (object,), {'host': '', 'port': 32076})
-
-        client = main.open_shadow_stream(args)
-
-        self.assertIsInstance(client, object)
+        asyncio.run(asyncio_test_outlet(self, args))
 
     def test_open_stream_outlet(self):
         # Create a mock argparse result
         args = type('obj', (object,), {'header': True})
 
-        xml_string = \
-            '<?xml version="1.0"?>' \
-            '<node key="0" id="default">' \
-            '<node key="1" id="FirstName"></node>' \
-            '<node key="9" id="LastName"/>' \
-            '</node>'
+        # Mock name mapping
+        name_map = {
+            1: 'FirstName',
+            9: 'LastName'
+        }
 
+        # And mock first frame of data
         container = {
             1: (float(0),) * len(main.CHANNEL_INFO),
             9: (float(1),) * len(main.CHANNEL_INFO)
         }
 
-        outlet = main.open_stream_outlet(args, xml_string, container)
+        outlet = main.open_stream_outlet(args, name_map, container)
 
         self.assertIsInstance(outlet, object)
 

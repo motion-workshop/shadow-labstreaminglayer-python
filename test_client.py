@@ -30,14 +30,12 @@ import asyncio
 import unittest
 
 
-async def asyncio_test_client():
+async def asyncio_test_client(ctx):
     reader, writer = await asyncio.open_connection(port=32076)
 
     message = await client.read_message(reader)
 
-    print(message)
-
-    message = b'<?xml version="1.0"?><configurable><Lq/><c/></configurable>'
+    message = b'<?xml version="1.0"?><configurable><Lq/></configurable>'
 
     await client.write_message(writer, message)
 
@@ -45,37 +43,74 @@ async def asyncio_test_client():
         message = await client.read_message(reader)
         if client.is_metadata(message):
             name_map = client.parse_metadata(message)
-            print(name_map)
+            ctx.assertIsInstance(name_map, dict)
             continue
 
-        print(len(message))
-
         sample = client.unpack_sample(message)
-        print(sample)
+        ctx.assertIsInstance(sample, dict)
+        for item in sample.values():
+            ctx.assertEqual(len(item), 4)
 
 
-async def asyncio_test_stream():
+async def asyncio_test_stream(ctx):
     stream = await client.open_connection()
 
-    message = b'<?xml version="1.0"?><configurable><Lq/><c/></configurable>'
+    message = b'<?xml version="1.0"?><configurable><Bq/><c/></configurable>'
 
     await stream.write_message(message)
 
+    message = await stream.read_message()
+    sample = client.unpack_sample(message)
+    ctx.assertIsInstance(sample, dict)
+
+    name_map = stream.get_name_map()
+    ctx.assertIsInstance(name_map, dict)
+
+    for item in sample.values():
+        ctx.assertEqual(len(item), 8)
+
     for i in range(10):
         message = await stream.read_message()
-        print(len(message))
 
         sample = client.unpack_sample(message)
-        print(sample)
+        for item in sample.values():
+            ctx.assertEqual(len(item), 8)
 
 
 class TestClient(unittest.TestCase):
 
-    # def test_client(self):
-    #     asyncio.run(asyncio_test_client())
+    def test_client(self):
+        asyncio.run(asyncio_test_client(self))
 
     def test_stream(self):
-        asyncio.run(asyncio_test_stream())
+        asyncio.run(asyncio_test_stream(self))
+
+    def test_parse_metadata(self):
+        xml_string = \
+            '<?xml version="1.0"?>' \
+            '<node key="0" id="default">' \
+            '<node key="1" id="FirstName"></node>' \
+            '<node key="9" id="LastName"/>' \
+            '</node>'
+
+        name_map = client.parse_metadata(xml_string)
+
+        self.assertIsInstance(name_map, dict)
+
+        for k, v in name_map.items():
+            self.assertIsInstance(k, int)
+            self.assertIsInstance(v, str)
+
+        self.assertNotIn(0, name_map)
+        self.assertIn(1, name_map)
+        self.assertIn(9, name_map)
+
+        self.assertEqual(name_map.get(1), 'FirstName')
+        self.assertEqual(name_map.get(9), 'LastName')
+
+    def test_is_metadata(self):
+        self.assertTrue(client.is_metadata(b'<?xml version="1.0"?><node/>'))
+        self.assertFalse(client.is_metadata(b'<node/>'))
 
 
 if __name__ == '__main__':
